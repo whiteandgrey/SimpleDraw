@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2021",
+    "module": "ESNext",
+    "lib": ["DOM", "DOM.Iterable", "ES2021"],
+    "outDir": "dist/renderer",
+    "rootDir": "src/renderer",
+    "strict": false,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "declaration": false,
+    "sourceMap": true,
+    "moduleResolution": "bundler"
+  },
+  "include": ["src/renderer/**/*.ts"]
+}

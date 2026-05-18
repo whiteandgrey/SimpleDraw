@@ -1,0 +1,84 @@
+{
+  "name": "simpledraw-desktop",
+  "version": "1.3.1",
+  "description": "SimpleDraw - 轻量级流程图绘制桌面应用",
+  "author": "SimpleDraw Team",
+  "main": "dist/main/main.js",
+  "scripts": {
+    "dev": "concurrently -k \"npm run dev:renderer\" \"npm run build:main && npm run build:preload && npm run copy:assets && electron dist/main/main.js\"",
+    "dev:renderer": "node esbuild.renderer.mjs",
+    "build:main": "tsc -p tsconfig.main.json",
+    "build:preload": "tsc -p tsconfig.preload.json",
+    "build:renderer": "node esbuild.renderer.mjs production",
+    "copy:assets": "cp -r src/renderer/index.html src/renderer/styles.css dist/renderer/ 2>/dev/null; cp -r assets/fonts dist/renderer/fonts 2>/dev/null; mkdir -p assets && node -e \"try{require('fs').writeFileSync('assets/icon.png',Buffer.from('iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAAAlwSFlzAAALEwAACxMBAJqcGAAAAV5JREFUWEftlT1KA0EUx/9vNptYCCKCFl5A0DurWAh6AUFA8AKCF7CwEEHwAGJhYyGklU2wELyAnYWFhSAoiIKFhSCRbHY9vJlkTDazmyyC+ODBzHzm95/3MTME/isB/QuU2qZYLJ7Mzs6eDAYDI7knk8n14+NjO5PJPAEgAOz3+49LS0snUsmcTqebOzs7zf39/aVwOGxZlhW9vLzcv729jczOzpIA0Ov1Hi8vL68WFxf/VQQA8vn80fb2dgYAIpGIdXR0tJfP51eldwDwer3ezczMzE9FAACNRuN4Y2NjU/q+uLh4kM/nE9L39fX1fbFYzEvf39/fX5eWlgLXghRF+V5fX78vlUq7MpkMw7ZtB4DjOP9qQQDA3d3dk+M4+0tLS4XS/X7//v39/V2y1hXhcrlczGazH0EQTMZisTCAawBoNpvOT0VAb0FnQY2gVtBb0FnQ/xPoD5TaKVOnbFX0AAAAAElFTkSuQmCC','base64'))}catch(e){}\"",
+    "build": "npm run build:main && npm run build:preload && npm run build:renderer && npm run copy:assets",
+    "build:asar": "node scripts/build-asar.mjs",
+    "build:portable": "npm run build && npm run build:asar && node scripts/build-zip.mjs",
+    "start": "npm run build && electron dist/main/main.js",
+    "dist:win": "npm run build && electron-builder --win --config.electronDist=node_modules/electron/dist",
+    "dist:win-portable": "npm run build && electron-builder --win --config.win.target=portable",
+    "dist:linux": "npm run build && electron-builder --linux",
+    "pack:win": "npm run build && electron-builder --win --dir"
+  },
+  "build": {
+    "appId": "com.simpledraw.app",
+    "productName": "SimpleDraw",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "assets/**/*"
+    ],
+    "extraResources": [
+      { "from": "assets/fonts", "to": "fonts" }
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "assets/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "fileAssociations": [
+      {
+        "ext": "simpledraw",
+        "name": "SimpleDraw Drawing",
+        "description": "SimpleDraw 流程图文件",
+        "icon": "assets/icon.png"
+      }
+    ],
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "icon": "assets/icon.png"
+    }
+  },
+  "keywords": [
+    "drawing",
+    "flowchart",
+    "desktop"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@types/dompurify": "^3.0.5",
+    "@types/katex": "^0.16.8",
+    "@types/node": "^20.11.0",
+    "concurrently": "^8.2.2",
+    "electron": "^28.1.0",
+    "electron-builder": "^24.9.1",
+    "esbuild": "0.25.5",
+    "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "dompurify": "^3.0.8",
+    "html-to-image": "^1.11.13",
+    "katex": "^0.16.46",
+    "marked": "^12.0.0"
+  }
+}
