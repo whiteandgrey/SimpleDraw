@@ -1,14 +1,14 @@
 
 # SimpleDraw
 
-轻量级流程图绘制插件，在 Obsidian 中直接创建和编辑 `.simpledraw` 文件。<br>
-A lightweight flowchart drawing plugin. Create and edit `.simpledraw` files directly in Obsidian.
+轻量级流程图绘制软件，在 SimpleDraw 中直接创建和编辑 `.simpledraw` 文件。<br>
+A lightweight flowchart drawing app. Create and edit `.simpledraw` files directly in Obsidian.
 
 ![version](https://img.shields.io/badge/version-1.5.3-blue)
 
-> 🖥️ **桌面版已发布！** 无需 Obsidian，独立运行。支持窗口分离、系统托盘、原生文件保存。  
-> 🖥️ **Desktop version now available!** Standalone app — no Obsidian needed. Multi-window, system tray, native file save.  
-> 🔗 https://github.com/whiteandgrey/SimpleDraw
+> 🖥️ 不想用独立桌面版?**obsidian插件已发布！**   
+> 🖥️ Don't want to use a standalone desktop app? **The Obsidian plugin has been released!**
+> 🔗 https://community.obsidian.md/plugins/simple-draw
 
 ---
 
