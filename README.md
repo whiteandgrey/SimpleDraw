@@ -7,7 +7,7 @@ A lightweight flowchart drawing app. Create and edit `.simpledraw` files directl
 ![version](https://img.shields.io/badge/version-1.5.3-blue)
 
 > 🖥️ 不想用独立桌面版?**obsidian插件已发布！**   
-> 🖥️ Don't want to use a standalone desktop app? **The Obsidian plugin has been released!**
+> 🖥️ Don't want to use a standalone desktop app? **The Obsidian plugin has been released!**<br>
 > 🔗 https://community.obsidian.md/plugins/simple-draw
 
 ---
