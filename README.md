@@ -172,15 +172,10 @@ One-click switch in settings.
 ## 安装
 ## Installation
 
-1. 下载 `main.js`、`manifest.json`、`styles.css`。<br>
-   Download `main.js`, `manifest.json`, `styles.css`.
-2. 复制到 `.obsidian/plugins/simple-draw/`。<br>
-   Copy to `.obsidian/plugins/simple-draw/`.
-3. 在 Obsidian 设置中启用插件。<br>
-   Enable the plugin in Obsidian settings.
-4. 在文件夹上右键 →「插入 SimpleDraw」新建 `.simpledraw` 文件。<br>
-   Right-click a folder → "Insert SimpleDraw" to create a `.simpledraw` file.
-
+1. 在release里下载安装包并点击安装（注意，安装包没有微软许可证，会被Windows系统警告）；
+2. 在release里下载便携版，直接解压并使用；
+1. Download the installer from the release page and click to install (note: the installer does not have a Microsoft license and will trigger a Microsoft warning);
+2. Download the portable version from the release page, then simply extract and use it directly;
 ---
 
 ## 设置
@@ -200,28 +195,7 @@ One-click switch in settings.
 | 吸附对齐 Snap Enabled | 开启/关闭 On/Off |
 | 快捷键 Shortcuts | 自定义 Markdown 格式快捷键 Custom Markdown shortcuts |
 
----
 
-## 技术架构
-## Architecture
-
-```
-src/
-├── main.ts          入口 — 注册视图、命令、功能区、文件菜单、设置选项卡
-                     Plugin entry: register view, commands, ribbon, file menu, settings tab
-├── view.ts          视图层 — DOM、事件、渲染循环、编辑器、PNG 导出
-                     View layer: DOM, events, render loop, editors, PNG export
-├── engine.ts        核心引擎 — 选择、历史记录、坐标变换、吸附、箭头路由
-                     Core engine: selection, history, transforms, snap, arrow routing
-├── types.ts         数据类型 — 枚举、常量
-                     Data types: enums, constants
-├── settings.ts      设置接口 — 默认值
-                     Settings interface: defaults
-├── settingsTab.ts   设置选项卡 UI
-                     Settings tab UI
-└── locale.ts        国际化 — 中文 / English
-                     i18n: Chinese / English
-```
 
 ---
 
