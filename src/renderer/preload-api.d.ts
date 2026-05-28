@@ -24,6 +24,7 @@ interface SimpleDrawAPI {
     onCloseRequest(handler: () => void): void;
     closeWindow(): void;
     sendReady(): void;
+    openNewWindow(): void;
 }
 
 interface Window {

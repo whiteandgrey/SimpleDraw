@@ -1,6 +1,6 @@
 // Settings Window — standalone version (replaces Obsidian PluginSettingTab)
 
-import { SimpleDrawSettings, getArrowShapes, ArrowShape, ShortcutBinding, getShortcutActions, TextShortcutAction, bindingLabel, DEFAULT_SETTINGS, validateColor } from './settings';
+import { SimpleDrawSettings, getArrowShapes, ArrowShape, ShortcutBinding, getShortcutActions, TextShortcutAction, bindingLabel, DEFAULT_SETTINGS, validateColor, AnchorScheme } from './settings';
 import { t, setLanguage, Language } from './locale';
 
 export class SettingsWindow {
@@ -61,6 +61,23 @@ export class SettingsWindow {
             this.createSlider(8, 72, 1, this.settings.textboxDefaultFontSize, (val) => { this.settings.textboxDefaultFontSize = val; })
         ));
         container.appendChild(basicSection.container);
+
+        // ========== 吸附功能 ==========
+        const snapSection = this.createCollapsibleSection(t('settings.group.snap'), false);
+        snapSection.body.appendChild(this.createSettingRow(
+            t('settings.anchorScheme.name'), t('settings.anchorScheme.desc'),
+            this.createDropdown([
+                { value: 'scheme1', label: t('settings.anchorScheme.scheme1') },
+                { value: 'scheme2', label: t('settings.anchorScheme.scheme2') },
+            ], this.settings.anchorScheme, (val) => {
+                this.settings.anchorScheme = val as AnchorScheme;
+            })
+        ));
+        snapSection.body.appendChild(this.createSettingRow(
+            t('settings.snapPreviewRadius.name'), t('settings.snapPreviewRadius.desc'),
+            this.createSlider(4, 20, 1, this.settings.snapPreviewRadius, (val) => { this.settings.snapPreviewRadius = val; })
+        ));
+        container.appendChild(snapSection.container);
 
         // ========== 箭头设置 ==========
         const arrowSection = this.createCollapsibleSection(t('settings.group.arrow'), false);

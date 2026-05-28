@@ -283,6 +283,29 @@ function setupIpcHandlers(): void {
         await saveSettings(settings);
         return { success: true };
     });
+
+    // ---- 新建窗口（独立窗口，不覆盖 mainWindow） ----
+    ipcMain.handle('app:open-new-window', () => {
+        const win = new BrowserWindow({
+            width: 1280,
+            height: 800,
+            minWidth: 800,
+            minHeight: 600,
+            title: 'SimpleDraw',
+            icon: path.join(__dirname, '../../assets/icon.png'),
+            webPreferences: {
+                preload: path.join(__dirname, '../preload/preload.js'),
+                contextIsolation: true,
+                nodeIntegration: false,
+                sandbox: false,
+                backgroundThrottling: false,
+            },
+        });
+        win.loadFile(path.join(__dirname, '../renderer/index.html'));
+        win.on('closed', () => {
+            // 自动清理，不做额外处理
+        });
+    });
 }
 
 // ---- 多窗口支持 ----

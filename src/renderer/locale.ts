@@ -32,6 +32,13 @@ const zh: Record<string, string> = {
     'settings.showGrid.name': '显示画板纹路',
     'settings.showGrid.desc': '在画板上显示网格纹路，方便感知画板拖拽与放大缩小',
     'settings.group.basic': '基础设置',
+    'settings.group.snap': '吸附功能',
+    'settings.anchorScheme.name': '锚点方案',
+    'settings.anchorScheme.desc': '选择箭头吸附时文本框上的锚点方案',
+    'settings.anchorScheme.scheme1': '方案一：角点+边中点（8锚点）',
+    'settings.anchorScheme.scheme2': '方案二：边中点+四分之一点（12锚点）',
+    'settings.snapPreviewRadius.name': '吸附预览圆圈大小',
+    'settings.snapPreviewRadius.desc': '设置箭头吸附时显示的蓝色预览圆圈大小（4-20像素）',
     'settings.group.arrow': '箭头设置',
     'settings.group.color': '元素颜色',
     'settings.group.image': '图片插入',
@@ -100,6 +107,8 @@ const zh: Record<string, string> = {
     // Context menu
     'contextMenu.bringToFront': '置顶',
     'contextMenu.sendToBack': '置底',
+    'contextMenu.lock': '锁定',
+    'contextMenu.unlock': '解锁',
 
     // Textbox editor
     'textboxEditor.toggleVisibility': '显隐切换 (边框+填充)',
@@ -115,6 +124,7 @@ const zh: Record<string, string> = {
     'textboxEditor.shape.rectangle': '矩形',
     'textboxEditor.shape.ellipse': '椭圆形',
     'textboxEditor.shape.diamond': '菱形',
+    'textboxEditor.toggleLock': '锁定/解锁文本框',
     'textboxEditor.confirm': '确认',
     'textboxEditor.insertImage': '插入图片',
     'insertImage.width': '图片缩放比例',
@@ -127,7 +137,15 @@ const zh: Record<string, string> = {
     'arrowEditor.toggleStart': '尾部箭头显隐切换',
     'arrowEditor.toggleEnd': '首部箭头显隐切换',
     'arrowEditor.toggleDash': '实线/虚线切换',
+    'arrowEditor.toggleLabel': '文字框开关切换',
     'arrowEditor.delete': '删除',
+
+    // Arrow label editor
+    'arrowLabelEditor.confirm': '确认',
+    'arrowLabelEditor.placeholder': '请输入 markdown 文本',
+    'arrowLabelEditor.position.overlap': '重叠',
+    'arrowLabelEditor.position.above': '上移',
+    'arrowLabelEditor.position.below': '下移',
 
     // Export modal
     'export.title': '导出为 PNG',
@@ -169,6 +187,13 @@ const en: Record<string, string> = {
     'settings.showGrid.name': 'Show Grid',
     'settings.showGrid.desc': 'Display grid lines on canvas for easier pan and zoom navigation',
     'settings.group.basic': 'Basic',
+    'settings.group.snap': 'Snap',
+    'settings.anchorScheme.name': 'Anchor Scheme',
+    'settings.anchorScheme.desc': 'Select snap anchor scheme for textboxes',
+    'settings.anchorScheme.scheme1': 'Scheme 1: Corners+Midpoints (8 anchors)',
+    'settings.anchorScheme.scheme2': 'Scheme 2: Midpoints+Quarter points (12 anchors)',
+    'settings.snapPreviewRadius.name': 'Snap Preview Circle Size',
+    'settings.snapPreviewRadius.desc': 'Set the blue snap preview circle size (4-20px)',
     'settings.group.arrow': 'Arrow',
     'settings.group.color': 'Colors',
     'settings.group.image': 'Image',
@@ -237,6 +262,8 @@ const en: Record<string, string> = {
     // Context menu
     'contextMenu.bringToFront': 'Bring to Front',
     'contextMenu.sendToBack': 'Send to Back',
+    'contextMenu.lock': 'Lock',
+    'contextMenu.unlock': 'Unlock',
 
     // Textbox editor
     'textboxEditor.toggleVisibility': 'Toggle Visibility (Border+Fill)',
@@ -252,6 +279,7 @@ const en: Record<string, string> = {
     'textboxEditor.shape.rectangle': 'Rectangle',
     'textboxEditor.shape.ellipse': 'Ellipse',
     'textboxEditor.shape.diamond': 'Diamond',
+    'textboxEditor.toggleLock': 'Lock/Unlock Textbox',
     'textboxEditor.confirm': 'Done',
     'textboxEditor.insertImage': 'Insert Image',
     'insertImage.width': 'Image Scale (%)',
@@ -264,7 +292,15 @@ const en: Record<string, string> = {
     'arrowEditor.toggleStart': 'Toggle Start Arrow',
     'arrowEditor.toggleEnd': 'Toggle End Arrow',
     'arrowEditor.toggleDash': 'Toggle Solid/Dashed',
+    'arrowEditor.toggleLabel': 'Toggle Label',
     'arrowEditor.delete': 'Delete',
+
+    // Arrow label editor
+    'arrowLabelEditor.confirm': 'Done',
+    'arrowLabelEditor.placeholder': 'Enter markdown text',
+    'arrowLabelEditor.position.overlap': 'Overlap',
+    'arrowLabelEditor.position.above': 'Above',
+    'arrowLabelEditor.position.below': 'Below',
 
     // Export modal
     'export.title': 'Export as PNG',

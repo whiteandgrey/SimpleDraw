@@ -55,4 +55,9 @@ contextBridge.exposeInMainWorld('simpledraw', {
         // 唯一标记：初始文件路径（如果命令行有的话）
         ipcRenderer.invoke('app:renderer-ready');
     },
+
+    // 新建窗口
+    openNewWindow: () => {
+        ipcRenderer.invoke('app:open-new-window');
+    },
 });

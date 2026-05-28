@@ -151,12 +151,8 @@ export class AppShell {
         }
     }
 
-    private async handleNewFile(): Promise<void> {
-        if (this.canvas.isDirty) {
-            const confirmed = confirm('当前文件有未保存的更改，是否继续？');
-            if (!confirmed) return;
-        }
-        await this.canvas.newFile();
+    private handleNewFile(): void {
+        window.simpledraw.openNewWindow();
     }
 
     private async handleOpenFile(filePath?: string): Promise<void> {

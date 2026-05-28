@@ -1,6 +1,7 @@
 import { t } from './locale';
 
 export type ArrowShape = 'triangle' | 'open-triangle' | 'v-shape' | 'circle';
+export type AnchorScheme = 'scheme1' | 'scheme2';
 
 export function getArrowShapes(): { value: ArrowShape; label: string }[] {
     return [
@@ -89,6 +90,8 @@ export interface SimpleDrawSettings {
     shortcuts: ShortcutBinding[];
     language: 'zh' | 'en';
     snapEnabled: boolean;
+    anchorScheme: AnchorScheme;
+    snapPreviewRadius: number;
     textboxFillColor: string;
     textboxBorderColor: string;
     arrowColor: string;
@@ -107,6 +110,8 @@ export const DEFAULT_SETTINGS: SimpleDrawSettings = {
     shortcuts: DEFAULT_SHORTCUTS,
     language: 'zh',
     snapEnabled: true,
+    anchorScheme: 'scheme1',
+    snapPreviewRadius: 8,
     textboxFillColor: '#ffffff',
     textboxBorderColor: '#333333',
     arrowColor: '#333333',

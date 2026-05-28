@@ -25,6 +25,7 @@ export class SimpleDrawEngine {
     public selectedIds: Set<string> = new Set();
     public editingTextboxId: string | null = null;
     public editingArrowId: string | null = null;
+    public labelEditorArrowId: string | null = null;
     public arrowDirection: ArrowDirection = 'right';
 
     // Alignment snap state (for preview lines)
@@ -38,16 +39,16 @@ export class SimpleDrawEngine {
     private arrowEdgeCache: Set<string> = new Set();
     private anchorToEdgeIdx(anchor: AnchorType): number {
         switch (anchor) {
-            case 'top': case 'top-left': case 'top-right': return 0;
-            case 'bottom': case 'bottom-left': case 'bottom-right': return 1;
-            case 'left': return 2;
-            case 'right': return 3;
+            case 'top': case 'top-left': case 'top-right': case 'top-q1': case 'top-q2': return 0;
+            case 'bottom': case 'bottom-left': case 'bottom-right': case 'bottom-q1': case 'bottom-q2': return 1;
+            case 'left': case 'left-q1': case 'left-q2': return 2;
+            case 'right': case 'right-q1': case 'right-q2': return 3;
         }
     }
 
     // Drag state
     public dragging: {
-        type: 'move' | 'resize' | 'pan';
+        type: 'move' | 'resize' | 'pan' | 'label-resize';
         elementIds?: Set<string>;
         startMouseX: number;
         startMouseY: number;
@@ -57,6 +58,7 @@ export class SimpleDrawEngine {
         startHeight?: number;
         resizeHandle?: string;
         textboxId?: string;
+        arrowId?: string;
     } | null = null;
 
     // Undo/redo
@@ -256,16 +258,24 @@ export class SimpleDrawEngine {
             case 'bottom': return { x: x + width / 2, y: y + height };
             case 'bottom-left': return { x, y: y + height };
             case 'left': return { x, y: y + height / 2 };
+            case 'top-q1': return { x: x + width / 4, y };
+            case 'top-q2': return { x: x + width * 3 / 4, y };
+            case 'right-q1': return { x: x + width, y: y + height / 4 };
+            case 'right-q2': return { x: x + width, y: y + height * 3 / 4 };
+            case 'bottom-q1': return { x: x + width / 4, y: y + height };
+            case 'bottom-q2': return { x: x + width * 3 / 4, y: y + height };
+            case 'left-q1': return { x, y: y + height / 4 };
+            case 'left-q2': return { x, y: y + height * 3 / 4 };
         }
     }
 
     getAnchorDirection(conn: ArrowConnection | FreePoint): ArrowDirection | null {
         if (!('elementId' in conn)) return null;
         const anchor = conn.anchor;
-        if (anchor === 'left' || anchor === 'top-left' || anchor === 'bottom-left') return 'left';
-        if (anchor === 'right' || anchor === 'top-right' || anchor === 'bottom-right') return 'right';
-        if (anchor === 'top') return 'up';
-        if (anchor === 'bottom') return 'down';
+        if (anchor === 'left' || anchor === 'top-left' || anchor === 'bottom-left' || anchor === 'left-q1' || anchor === 'left-q2') return 'left';
+        if (anchor === 'right' || anchor === 'top-right' || anchor === 'bottom-right' || anchor === 'right-q1' || anchor === 'right-q2') return 'right';
+        if (anchor === 'top' || anchor === 'top-q1' || anchor === 'top-q2') return 'up';
+        if (anchor === 'bottom' || anchor === 'bottom-q1' || anchor === 'bottom-q2') return 'down';
         return null;
     }
 
@@ -582,8 +592,79 @@ export class SimpleDrawEngine {
         points.push(end);
         return points;
     }
+
+    getArrowMidpoint(arrow: ArrowData): { x: number; y: number } {
+        const points = this.buildArrowPath(arrow.startConnection, arrow.endConnection, arrow.arrowDirection);
+        if (points.length < 2) return points[0] || { x: 0, y: 0 };
+
+        // Calculate total path length
+        let totalLen = 0;
+        const segLens: number[] = [];
+        for (let i = 1; i < points.length; i++) {
+            const dx = points[i].x - points[i - 1].x;
+            const dy = points[i].y - points[i - 1].y;
+            const len = Math.sqrt(dx * dx + dy * dy);
+            segLens.push(len);
+            totalLen += len;
+        }
+
+        // Find 50% position
+        const half = totalLen / 2;
+        let acc = 0;
+        for (let i = 0; i < segLens.length; i++) {
+            if (acc + segLens[i] >= half) {
+                const t = (half - acc) / segLens[i];
+                return {
+                    x: points[i].x + (points[i + 1].x - points[i].x) * t,
+                    y: points[i].y + (points[i + 1].y - points[i].y) * t,
+                };
+            }
+            acc += segLens[i];
+        }
+        return points[points.length - 1];
+    }
+
+    getLabelOffset(arrow: ArrowData, position: 'overlap' | 'above' | 'below'): { x: number; y: number } {
+        if (position === 'overlap') return { x: 0, y: 0 };
+        const points = this.buildArrowPath(arrow.startConnection, arrow.endConnection, arrow.arrowDirection);
+        if (points.length < 2) return { x: 0, y: 0 };
+
+        let totalLen = 0;
+        const segLens: number[] = [];
+        for (let i = 1; i < points.length; i++) {
+            const dx = points[i].x - points[i - 1].x;
+            const dy = points[i].y - points[i - 1].y;
+            segLens.push(Math.sqrt(dx * dx + dy * dy));
+            totalLen += segLens[segLens.length - 1];
+        }
+        if (totalLen === 0) return { x: 0, y: 0 };
+
+        const halfLen = totalLen / 2;
+        let acc = 0;
+        for (let i = 0; i < segLens.length; i++) {
+            if (acc + segLens[i] >= halfLen) {
+                const segmentDx = points[i + 1].x - points[i].x;
+                const segmentDy = points[i + 1].y - points[i].y;
+                const len = segLens[i];
+                const offset = 15;
+                const nx = segmentDy / len;
+                const ny = -segmentDx / len;
+                if (position === 'above') return { x: nx * offset, y: ny * offset };
+                if (position === 'below') return { x: -nx * offset, y: -ny * offset };
+            }
+            acc += segLens[i];
+        }
+        return { x: 0, y: 0 };
+    }
+
     getAnchors(textbox: TextBoxData): { anchor: AnchorType; x: number; y: number }[] {
-        const anchors: AnchorType[] = ['top-left', 'top', 'top-right', 'right', 'bottom-right', 'bottom', 'bottom-left', 'left'];
+        const scheme = this.settings?.anchorScheme ?? 'scheme1';
+        let anchors: AnchorType[];
+        if (scheme === 'scheme2') {
+            anchors = ['top-q1', 'top', 'top-q2', 'right-q1', 'right', 'right-q2', 'bottom-q1', 'bottom', 'bottom-q2', 'left-q1', 'left', 'left-q2'];
+        } else {
+            anchors = ['top-left', 'top', 'top-right', 'right', 'bottom-right', 'bottom', 'bottom-left', 'left'];
+        }
         return anchors.map(a => ({ anchor: a, ...this.getAnchorPosition(textbox, a) }));
     }
 
@@ -614,6 +695,7 @@ export class SimpleDrawEngine {
         this.selectionState = null;
         this.editingTextboxId = null;
         this.editingArrowId = null;
+        this.labelEditorArrowId = null;
         this.notifyModeChange();
     }
 
@@ -757,7 +839,40 @@ export class SimpleDrawEngine {
         return this.arrowEdgeCache.has(`${id1}->${id2}:${edge1}->${edge2}`);
     }
 
+    private getQuarterPointPairings(): Map<string, Map<string, { tbId: string; anchor: string }>> {
+        const map = new Map<string, Map<string, { tbId: string; anchor: string }>>();
+        const quarterAnchors = new Set(['top-q1', 'top-q2', 'right-q1', 'right-q2', 'bottom-q1', 'bottom-q2', 'left-q1', 'left-q2']);
+        for (const el of this.data.elements) {
+            if (el.type !== 'arrow') continue;
+            const ar = el as ArrowData;
+            if ('elementId' in ar.startConnection && 'elementId' in ar.endConnection) {
+                const aId = ar.startConnection.elementId;
+                const aAnchor = ar.startConnection.anchor;
+                const bId = ar.endConnection.elementId;
+                const bAnchor = ar.endConnection.anchor;
+                if (quarterAnchors.has(aAnchor)) {
+                    if (!map.has(aId)) map.set(aId, new Map());
+                    map.get(aId)!.set(aAnchor, { tbId: bId, anchor: bAnchor });
+                }
+                if (quarterAnchors.has(bAnchor)) {
+                    if (!map.has(bId)) map.set(bId, new Map());
+                    map.get(bId)!.set(bAnchor, { tbId: aId, anchor: aAnchor });
+                }
+            }
+        }
+        return map;
+    }
+
     // Called each mousemove during drag — only shows preview lines, no snapping
+    private getAlignmentPoints(tb: TextBoxData): { x: number; y: number; edgeIdx: number }[] {
+        return [
+            { x: tb.x + tb.width / 2, y: tb.y, edgeIdx: 0 },
+            { x: tb.x + tb.width / 2, y: tb.y + tb.height, edgeIdx: 1 },
+            { x: tb.x, y: tb.y + tb.height / 2, edgeIdx: 2 },
+            { x: tb.x + tb.width, y: tb.y + tb.height / 2, edgeIdx: 3 },
+        ];
+    }
+
     computeAlignmentPreview(ids: Set<string>): void {
         this.clearAlignmentSnap();
 
@@ -769,44 +884,39 @@ export class SimpleDrawEngine {
 
         this.buildArrowCache();
 
-        // Collect static textboxes
+        // Collect static textboxes (skip locked)
         const staticTbs: TextBoxData[] = [];
         for (const el of this.data.elements) {
-            if (el.type === 'textbox' && !movingIds.has(el.id)) staticTbs.push(el);
+            if (el.type === 'textbox' && !movingIds.has(el.id) && !(el as TextBoxData).locked) {
+                staticTbs.push(el as TextBoxData);
+            }
         }
         if (staticTbs.length === 0) return;
-
-        // Helper: compute 4 edge midpoints for a textbox
-        const edgePts = (tb: TextBoxData) => [
-            { x: tb.x + tb.width / 2, y: tb.y },         // top
-            { x: tb.x + tb.width / 2, y: tb.y + tb.height }, // bottom
-            { x: tb.x, y: tb.y + tb.height / 2 },         // left
-            { x: tb.x + tb.width, y: tb.y + tb.height / 2 }, // right
-        ];
 
         // Best candidates per axis
         type AlignCand = { off: number; mx: number; my: number; sx: number; sy: number; priority: number; };
         let bestX: AlignCand | null = null;
         let bestY: AlignCand | null = null;
 
+        // ---- Regular edge-midpoint alignment (always active) ----
         for (const el of this.data.elements) {
             if (el.type !== 'textbox' || !movingIds.has(el.id)) continue;
             const tb = el as TextBoxData;
-            const movingPts = edgePts(tb);
+            const movingPts = this.getAlignmentPoints(tb);
 
             for (const otb of staticTbs) {
-                const staticPts = edgePts(otb);
+                const staticPts = this.getAlignmentPoints(otb);
 
-                for (let mi = 0; mi < 4; mi++) {
+                for (let mi = 0; mi < movingPts.length; mi++) {
                     const mp = movingPts[mi]!;
-                    for (let si = 0; si < 4; si++) {
+                    for (let si = 0; si < staticPts.length; si++) {
                         const sp = staticPts[si]!;
                         const xOff = sp.x - mp.x;
                         const yOff = sp.y - mp.y;
 
                         let prio = 3;
-                        if (this.areEdgesConnected(tb.id, otb.id, mi, si)) prio = 1;
-                        else if (mi === si) prio = 2;
+                        if (this.areEdgesConnected(tb.id, otb.id, mp.edgeIdx, sp.edgeIdx)) prio = 1;
+                        else if (mp.edgeIdx === sp.edgeIdx) prio = 2;
 
                         interface IC { off: number; mx: number; my: number; sx: number; sy: number; priority: number; }
                         if (Math.abs(xOff) < SNAP_DISTANCE) {
@@ -818,6 +928,76 @@ export class SimpleDrawEngine {
                         }
                         if (Math.abs(yOff) < SNAP_DISTANCE) {
                             const cand: IC = { off: yOff, mx: mp.x, my: mp.y, sx: sp.x, sy: sp.y, priority: prio };
+                            if (bestY === null || cand.priority < bestY.priority
+                                || (cand.priority === bestY.priority && Math.abs(cand.off) < Math.abs(bestY.off))) {
+                                bestY = cand;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ---- Quarter-point alignment (only connected pairs, scheme 2 only) ----
+        if (this.settings?.anchorScheme === 'scheme2') {
+            const qpPairs = this.getQuarterPointPairings();
+            for (const el of this.data.elements) {
+                if (el.type !== 'textbox' || !movingIds.has(el.id)) continue;
+                const tb = el as TextBoxData;
+                // Case 1: moving textbox's quarter point → paired anchor on static textbox
+                const pairsForTb = qpPairs.get(tb.id);
+                if (pairsForTb) {
+                    for (const [qAnchor, pair] of pairsForTb) {
+                        const otb = staticTbs.find(s => s.id === pair.tbId);
+                        if (!otb) continue;
+
+                        const mp = this.getAnchorPosition(tb, qAnchor as AnchorType);
+                        const sp = this.getAnchorPosition(otb, pair.anchor as AnchorType);
+                        const xOff = sp.x - mp.x;
+                        const yOff = sp.y - mp.y;
+                        const prio = 1;
+
+                        interface IC2 { off: number; mx: number; my: number; sx: number; sy: number; priority: number; }
+                        if (Math.abs(xOff) < SNAP_DISTANCE) {
+                            const cand: IC2 = { off: xOff, mx: mp.x, my: mp.y, sx: sp.x, sy: sp.y, priority: prio };
+                            if (bestX === null || cand.priority < bestX.priority
+                                || (cand.priority === bestX.priority && Math.abs(cand.off) < Math.abs(bestX.off))) {
+                                bestX = cand;
+                            }
+                        }
+                        if (Math.abs(yOff) < SNAP_DISTANCE) {
+                            const cand: IC2 = { off: yOff, mx: mp.x, my: mp.y, sx: sp.x, sy: sp.y, priority: prio };
+                            if (bestY === null || cand.priority < bestY.priority
+                                || (cand.priority === bestY.priority && Math.abs(cand.off) < Math.abs(bestY.off))) {
+                                bestY = cand;
+                            }
+                        }
+                    }
+                }
+
+                // Case 2: static textbox's quarter point → paired anchor on moving textbox
+                for (const otb of staticTbs) {
+                    const staticPairs = qpPairs.get(otb.id);
+                    if (!staticPairs) continue;
+                    for (const [qAnchor, pair] of staticPairs) {
+                        if (pair.tbId !== tb.id) continue;
+
+                        const mp = this.getAnchorPosition(tb, pair.anchor as AnchorType);
+                        const sp = this.getAnchorPosition(otb, qAnchor as AnchorType);
+                        const xOff = sp.x - mp.x;
+                        const yOff = sp.y - mp.y;
+                        const prio = 1;
+
+                        interface IC3 { off: number; mx: number; my: number; sx: number; sy: number; priority: number; }
+                        if (Math.abs(xOff) < SNAP_DISTANCE) {
+                            const cand: IC3 = { off: xOff, mx: mp.x, my: mp.y, sx: sp.x, sy: sp.y, priority: prio };
+                            if (bestX === null || cand.priority < bestX.priority
+                                || (cand.priority === bestX.priority && Math.abs(cand.off) < Math.abs(bestX.off))) {
+                                bestX = cand;
+                            }
+                        }
+                        if (Math.abs(yOff) < SNAP_DISTANCE) {
+                            const cand: IC3 = { off: yOff, mx: mp.x, my: mp.y, sx: sp.x, sy: sp.y, priority: prio };
                             if (bestY === null || cand.priority < bestY.priority
                                 || (cand.priority === bestY.priority && Math.abs(cand.off) < Math.abs(bestY.off))) {
                                 bestY = cand;
@@ -860,13 +1040,6 @@ export class SimpleDrawEngine {
         }
         if (staticTbs.length === 0) return;
 
-        const edgePts = (tb: TextBoxData) => [
-            { x: tb.x + tb.width / 2, y: tb.y },
-            { x: tb.x + tb.width / 2, y: tb.y + tb.height },
-            { x: tb.x, y: tb.y + tb.height / 2 },
-            { x: tb.x + tb.width, y: tb.y + tb.height / 2 },
-        ];
-
         let snapByX = 0, snapByY = 0;
         type SnapCand = { off: number; priority: number; };
         let bestX: SnapCand | null = null;
@@ -874,26 +1047,95 @@ export class SimpleDrawEngine {
 
         this.buildArrowCache();
 
+        // ---- Regular edge-midpoint alignment ----
         for (const el of this.data.elements) {
             if (el.type !== 'textbox' || !movingIds.has(el.id)) continue;
             const tb = el as TextBoxData;
-            const movingPts = edgePts(tb);
+            const movingPts = this.getAlignmentPoints(tb);
 
             for (const otb of staticTbs) {
-                const staticPts = edgePts(otb);
+                const staticPts = this.getAlignmentPoints(otb);
 
-                for (let mi = 0; mi < 4; mi++) {
+                for (let mi = 0; mi < movingPts.length; mi++) {
                     const mp = movingPts[mi]!;
-                    for (let si = 0; si < 4; si++) {
+                    for (let si = 0; si < staticPts.length; si++) {
                         const sp = staticPts[si]!;
                         const xOff = sp.x - mp.x;
                         const yOff = sp.y - mp.y;
 
                         let prio = 3;
-                        if (this.areEdgesConnected(tb.id, otb.id, mi, si)) prio = 1;
-                        else if (mi === si) prio = 2;
+                        if (this.areEdgesConnected(tb.id, otb.id, mp.edgeIdx, sp.edgeIdx)) prio = 1;
+                        else if (mp.edgeIdx === sp.edgeIdx) prio = 2;
 
                         interface IC2 { off: number; priority: number; }
+                        if (Math.abs(xOff) < SNAP_DISTANCE) {
+                            const cand: IC2 = { off: xOff, priority: prio };
+                            if (bestX === null || cand.priority < bestX.priority
+                                || (cand.priority === bestX.priority && Math.abs(cand.off) < Math.abs(bestX.off))) {
+                                bestX = cand;
+                            }
+                        }
+                        if (Math.abs(yOff) < SNAP_DISTANCE) {
+                            const cand: IC2 = { off: yOff, priority: prio };
+                            if (bestY === null || cand.priority < bestY.priority
+                                || (cand.priority === bestY.priority && Math.abs(cand.off) < Math.abs(bestY.off))) {
+                                bestY = cand;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ---- Quarter-point alignment (only connected pairs, scheme 2 only) ----
+        if (this.settings?.anchorScheme === 'scheme2') {
+            const qpPairs = this.getQuarterPointPairings();
+            for (const el of this.data.elements) {
+                if (el.type !== 'textbox' || !movingIds.has(el.id)) continue;
+                const tb = el as TextBoxData;
+                // Case 1: moving textbox's quarter point → paired anchor on static textbox
+                const pairsForTb = qpPairs.get(tb.id);
+                if (pairsForTb) {
+                    for (const [qAnchor, pair] of pairsForTb) {
+                        const otb = staticTbs.find(s => s.id === pair.tbId);
+                        if (!otb) continue;
+
+                        const mp = this.getAnchorPosition(tb, qAnchor as AnchorType);
+                        const sp = this.getAnchorPosition(otb, pair.anchor as AnchorType);
+                        const xOff = sp.x - mp.x;
+                        const yOff = sp.y - mp.y;
+                        const prio = 1;
+
+                        if (Math.abs(xOff) < SNAP_DISTANCE) {
+                            const cand: IC2 = { off: xOff, priority: prio };
+                            if (bestX === null || cand.priority < bestX.priority
+                                || (cand.priority === bestX.priority && Math.abs(cand.off) < Math.abs(bestX.off))) {
+                                bestX = cand;
+                            }
+                        }
+                        if (Math.abs(yOff) < SNAP_DISTANCE) {
+                            const cand: IC2 = { off: yOff, priority: prio };
+                            if (bestY === null || cand.priority < bestY.priority
+                                || (cand.priority === bestY.priority && Math.abs(cand.off) < Math.abs(bestY.off))) {
+                                bestY = cand;
+                            }
+                        }
+                    }
+                }
+
+                // Case 2: static textbox's quarter point → paired anchor on moving textbox
+                for (const otb of staticTbs) {
+                    const staticPairs = qpPairs.get(otb.id);
+                    if (!staticPairs) continue;
+                    for (const [qAnchor, pair] of staticPairs) {
+                        if (pair.tbId !== tb.id) continue;
+
+                        const mp = this.getAnchorPosition(tb, pair.anchor as AnchorType);
+                        const sp = this.getAnchorPosition(otb, qAnchor as AnchorType);
+                        const xOff = sp.x - mp.x;
+                        const yOff = sp.y - mp.y;
+                        const prio = 1;
+
                         if (Math.abs(xOff) < SNAP_DISTANCE) {
                             const cand: IC2 = { off: xOff, priority: prio };
                             if (bestX === null || cand.priority < bestX.priority
@@ -976,10 +1218,12 @@ export class SimpleDrawEngine {
         const curX = pair.xEdge === 'right' ? edgeRight : edgeLeft;
         const curY = pair.yEdge === 'bottom' ? edgeBottom : edgeTop;
 
-        // 收集静态文本框
+        // 收集静态文本框（跳过锁定的）
         const others: TextBoxData[] = [];
         for (const el of this.data.elements) {
-            if (el.type === 'textbox' && el.id !== textboxId) others.push(el);
+            if (el.type === 'textbox' && el.id !== textboxId && !(el as TextBoxData).locked) {
+                others.push(el as TextBoxData);
+            }
         }
         if (others.length === 0) return;
 
@@ -1092,6 +1336,7 @@ export class SimpleDrawEngine {
 
         const found = new Set<string>();
         for (const el of this.data.elements) {
+            if (el.type === 'textbox' && (el as TextBoxData).locked) continue;
             const bounds = this.getElementBounds(el);
             if (bounds.x < maxX && bounds.x + bounds.width > minX &&
                 bounds.y < maxY && bounds.y + bounds.height > minY) {

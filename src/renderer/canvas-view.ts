@@ -51,6 +51,7 @@ export class SimpleDrawCanvas {
     public menuEl: HTMLElement;
     public textboxEditorEl: HTMLElement | null = null;
     public arrowEditorEl: HTMLElement | null = null;
+    public labelEditorEl: HTMLElement | null = null;
 
     // Menu buttons
     public btnInsertTextbox: HTMLElement;
@@ -570,9 +571,12 @@ export class SimpleDrawCanvas {
         const target = e.target as HTMLElement;
 
         if (target !== this.containerEl && target !== this.viewportEl &&
+            !target.closest('.simpledraw-label-resize-handle') &&
+            !target.closest('[data-arrow-label-id]') &&
             (target.closest('.simpledraw-menu') ||
              target.closest('.simpledraw-textbox-editor') ||
-             target.closest('.simpledraw-arrow-editor'))) {
+             target.closest('.simpledraw-arrow-editor') ||
+             target.closest('.simpledraw-arrow-label-editor'))) {
             return;
         }
 
@@ -689,6 +693,7 @@ export class SimpleDrawCanvas {
         for (const el of this.engine.data.elements) {
             if (el.type !== 'textbox') continue;
             const tb = el as TextBoxData;
+            if (tb.locked) continue;
             const handle = this.engine.getResizeHandle(tb, pos.x, pos.y);
             if (handle) {
                 this.engine.selectElement(tb.id, additive);
@@ -708,9 +713,63 @@ export class SimpleDrawCanvas {
             }
         }
 
+        // Check arrow label resize handles
+        const labelHandle = (e.target as HTMLElement).closest('[data-label-handle-id]') as HTMLElement | null;
+        if (labelHandle) {
+            const arrowId = labelHandle.dataset.labelHandleId!;
+            const handle = labelHandle.dataset.handle!;
+            const arrow = this.engine.data.elements.find(
+                e => e.id === arrowId && e.type === 'arrow'
+            ) as ArrowData | undefined;
+            if (arrow && this.engine.selectedIds.has(arrowId)) {
+                const labelDom = this.elementsLayer.querySelector(
+                    `[data-arrow-label-id="arrow-label-${arrowId}"]`) as HTMLElement | null;
+                const zoom = this.engine.data.viewState.zoom;
+                const curW = labelDom ? labelDom.getBoundingClientRect().width / zoom : (arrow.labelWidth ?? 120);
+                const curH = labelDom ? labelDom.getBoundingClientRect().height / zoom : (arrow.labelHeight ?? 30);
+                this.engine.dragging = {
+                    type: 'label-resize',
+                    arrowId: arrowId,
+                    startMouseX: pos.x,
+                    startMouseY: pos.y,
+                    startX: 0,
+                    startY: 0,
+                    startWidth: curW,
+                    startHeight: curH,
+                    resizeHandle: handle,
+                };
+                this.containerEl.style.cursor = 'nwse-resize';
+                return;
+            }
+        }
+
+        // Click on label text → select arrow without starting MOVE drag
+        if (!labelHandle) {
+            const labelHit = (e.target as HTMLElement).closest('[data-arrow-label-id]') as HTMLElement | null;
+            if (labelHit) {
+                const arrowId = labelHit.dataset.arrowLabelId!;
+                const realArrowId = arrowId.replace('arrow-label-', '');
+                if (!this.engine.selectedIds.has(realArrowId)) {
+                    this.engine.selectElement(realArrowId, additive);
+                }
+                this.requestRender();
+                return;
+            }
+        }
+
         const clickedEl = this.engine.getElementAt(pos.x, pos.y);
 
         if (clickedEl) {
+            // Locked textbox: select but do NOT start drag
+            if (clickedEl.type === 'textbox' && (clickedEl as TextBoxData).locked) {
+                if (additive) {
+                    this.engine.selectElement(clickedEl.id, true);
+                } else if (!this.engine.selectedIds.has(clickedEl.id)) {
+                    this.engine.selectElement(clickedEl.id, false);
+                }
+                return;
+            }
+
             if (additive) {
                 this.engine.selectElement(clickedEl.id, true);
             } else if (!this.engine.selectedIds.has(clickedEl.id)) {
@@ -822,6 +881,24 @@ export class SimpleDrawCanvas {
             return;
         }
 
+        // Arrow label resize (symmetric around midpoint, delta-based with 2x factor)
+        if (this.engine.dragging?.type === 'label-resize' && this.engine.dragging.arrowId) {
+            const arrow = this.engine.data.elements.find(
+                e => e.id === this.engine.dragging!.arrowId && e.type === 'arrow'
+            ) as ArrowData | undefined;
+            if (arrow && this.engine.dragging.startWidth != null && this.engine.dragging.startHeight != null) {
+                const dx = canvasPos.x - this.engine.dragging.startMouseX;
+                const dy = canvasPos.y - this.engine.dragging.startMouseY;
+                const origW = this.engine.dragging.startWidth;
+                const origH = this.engine.dragging.startHeight;
+                arrow.labelWidth = Math.max(30, origW + 2 * dx);
+                arrow.labelHeight = Math.max(12, origH + 2 * dy);
+                this.engine.notifyChange();
+                this.requestRender();
+            }
+            return;
+        }
+
         if (this.engine.selectionState?.active) {
             this.engine.selectionState.currentX = canvasPos.x;
             this.engine.selectionState.currentY = canvasPos.y;
@@ -890,6 +967,15 @@ export class SimpleDrawCanvas {
     }
 
     onDblClick(e: MouseEvent): void {
+        const target = e.target as HTMLElement;
+        const labelEl = target.closest('[data-arrow-label-id]');
+        if (labelEl) {
+            const id = labelEl.getAttribute('data-arrow-label-id')!;
+            const arrowId = id.replace('arrow-label-', '');
+            this.startArrowLabelEditor(arrowId);
+            return;
+        }
+
         const canvasPos = this.engine.screenToCanvas(e.clientX, e.clientY);
         const el = this.engine.getElementAt(canvasPos.x, canvasPos.y);
         if (el && el.type === 'textbox') {
@@ -958,6 +1044,24 @@ export class SimpleDrawCanvas {
 
         menu.appendChild(bringToFront);
         menu.appendChild(sendToBack);
+
+        const tbEl = this.engine.data.elements.find(e => e.id === elementId && e.type === 'textbox') as TextBoxData | undefined;
+        if (tbEl) {
+            const lockItem = menu.createDiv();
+            lockItem.textContent = tbEl.locked ? t('contextMenu.unlock') : t('contextMenu.lock');
+            lockItem.style.padding = '6px 12px';
+            lockItem.style.cursor = 'pointer';
+            lockItem.style.borderRadius = '3px';
+            lockItem.addEventListener('mouseenter', () => { lockItem.style.background = 'var(--hover-bg)'; });
+            lockItem.addEventListener('mouseleave', () => { lockItem.style.background = ''; });
+            lockItem.addEventListener('click', () => {
+                tbEl.locked = !tbEl.locked;
+                this.rebuildAll();
+                menu.remove();
+            });
+            menu.appendChild(lockItem);
+        }
+
         document.body.appendChild(menu);
 
         const closeMenu = (e: MouseEvent) => {
@@ -981,11 +1085,25 @@ export class SimpleDrawCanvas {
         if (e.key === 'Delete' || e.key === 'Backspace') {
             if (this.engine.editingTextboxId) return;
             if (this.engine.editingArrowId) return;
+            if (this.engine.labelEditorArrowId) return;
             if (this.engine.selectedIds.size > 0) {
-                this.engine.deleteElements(this.engine.selectedIds);
-                this.closeEditors();
-                this.requestRender();
+                const toDelete = new Set<string>();
+                for (const id of this.engine.selectedIds) {
+                    const el = this.engine.data.elements.find(e => e.id === id);
+                    if (el?.type === 'textbox' && (el as TextBoxData).locked) continue;
+                    toDelete.add(id);
+                }
+                if (toDelete.size > 0) {
+                    this.engine.deleteElements(toDelete);
+                    this.closeEditors();
+                    this.requestRender();
+                }
             }
+            return;
+        }
+
+        // When editing label textarea, let browser handle all keys natively
+        if (this.engine.labelEditorArrowId) {
             return;
         }
 
@@ -1013,7 +1131,7 @@ export class SimpleDrawCanvas {
 
         // Copy
         if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
-            if (this.engine.editingTextboxId || this.engine.editingArrowId) return;
+            if (this.engine.editingArrowId) return;
             if (this.engine.selectedIds.size > 0) {
                 e.preventDefault();
                 this.copySelectedElements();
@@ -1023,7 +1141,7 @@ export class SimpleDrawCanvas {
 
         // Paste
         if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
-            if (this.engine.editingTextboxId || this.engine.editingArrowId) return;
+            if (this.engine.editingArrowId) return;
             e.preventDefault();
             this.pasteFromClipboard();
             return;
@@ -1192,9 +1310,23 @@ export class SimpleDrawCanvas {
         }
         updateShapeHighlights();
 
+        // Lock toggle
+        const lockBtn = this.createSmallButton(
+            el.locked ? '🔒' : '🔓',
+            t('textboxEditor.toggleLock')
+        );
+        lockBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            el.locked = !el.locked;
+            lockBtn.textContent = el.locked ? '🔒' : '🔓';
+            this.engine.saveHistory();
+            this.engine.notifyChange();
+            this.requestRender();
+        });
+        toolbar1.appendChild(lockBtn);
+
         // Confirm button
         const confirmBtn = this.createSmallButton('✓', t('textboxEditor.confirm'));
-        confirmBtn.style.marginLeft = 'auto';
         confirmBtn.style.background = 'var(--accent-color)';
         confirmBtn.style.color = 'white';
         confirmBtn.addEventListener('click', () => {
@@ -1304,7 +1436,7 @@ export class SimpleDrawCanvas {
         const textarea = this.textboxEditorEl.createEl('textarea');
         textarea.style.width = '100%';
         textarea.style.minHeight = '100px';
-        textarea.style.resize = 'vertical';
+        textarea.style.resize = 'both';
         textarea.style.border = '1px solid var(--border-color)';
         textarea.style.borderRadius = '4px';
         textarea.style.padding = '6px';
@@ -1313,6 +1445,9 @@ export class SimpleDrawCanvas {
         textarea.style.fontFamily = 'var(--font-family)';
         textarea.style.fontSize = (this.settings.textboxDefaultFontSize ?? 16) + 'px';
         textarea.value = el.content;
+        // Immediately grow to fit existing content
+        textarea.style.height = 'auto';
+        textarea.style.height = Math.max(100, textarea.scrollHeight) + 'px';
         textarea.focus();
 
         textarea.addEventListener('keydown', (ev) => {
@@ -1327,6 +1462,8 @@ export class SimpleDrawCanvas {
 
         textarea.addEventListener('input', () => {
             el.content = textarea.value;
+            textarea.style.height = 'auto';
+            textarea.style.height = Math.max(100, textarea.scrollHeight) + 'px';
             this.requestRender();
         });
 
@@ -1486,7 +1623,22 @@ export class SimpleDrawCanvas {
         });
         this.arrowEditorEl.appendChild(dashBtn);
 
-        const delBtn = this.createSmallButton('🗑', t('arrowEditor.delete'));
+        const labelBtn = this.createSmallButton('T', t('arrowEditor.toggleLabel'));
+        labelBtn.style.fontWeight = 'bold';
+        labelBtn.addEventListener('click', () => {
+            el.labelVisible = !el.labelVisible;
+            if (el.labelVisible && !el.labelContent) {
+                this.closeEditors();
+                this.startArrowLabelEditor(id);
+            } else {
+                this.engine.saveHistory();
+                this.engine.notifyChange();
+                this.requestRender();
+            }
+        });
+        this.arrowEditorEl.appendChild(labelBtn);
+
+        const delBtn = this.createSmallButton('✕', t('arrowEditor.delete'));
         delBtn.addEventListener('click', () => {
             this.engine.deleteElement(id);
             this.closeEditors();
@@ -1495,7 +1647,159 @@ export class SimpleDrawCanvas {
         this.arrowEditorEl.appendChild(delBtn);
     }
 
+    startArrowLabelEditor(arrowId: string): void {
+        const arrow = this.engine.data.elements.find(e => e.id === arrowId && e.type === 'arrow') as ArrowData | undefined;
+        if (!arrow) return;
+
+        this.closeEditors();
+        this.engine.labelEditorArrowId = arrowId;
+        arrow.labelVisible = true;
+
+        const mid = this.engine.getArrowMidpoint(arrow);
+        const screen = this.engine.canvasToScreen(mid.x, mid.y);
+
+        this.labelEditorEl = this.containerEl.createDiv('simpledraw-arrow-label-editor');
+        this.labelEditorEl.style.left = Math.max(0, screen.x - 100) + 'px';
+        this.labelEditorEl.style.top = Math.max(0, screen.y - 20) + 'px';
+        this.labelEditorEl.style.display = 'block';
+        this.labelEditorEl.style.minWidth = '200px';
+        this.labelEditorEl.style.maxWidth = '500px';
+
+        // Row 1: font size controls + confirm (above textarea)
+        const toolbar = document.createElement('div');
+        toolbar.style.display = 'flex';
+        toolbar.style.gap = '4px';
+        toolbar.style.alignItems = 'center';
+        toolbar.style.marginBottom = '8px';
+        this.labelEditorEl.appendChild(toolbar);
+
+        // Row 2: textarea (below toolbar)
+        const textarea = document.createElement('textarea');
+        textarea.value = arrow.labelContent ?? '';
+        // Immediately grow to fit existing content
+        textarea.style.height = 'auto';
+        textarea.style.height = Math.max(60, textarea.scrollHeight) + 'px';
+        textarea.placeholder = t('arrowLabelEditor.placeholder');
+        textarea.style.width = '100%';
+        textarea.style.minHeight = '60px';
+        textarea.style.resize = 'both';
+        textarea.style.border = '1px solid var(--border-color)';
+        textarea.style.borderRadius = '4px';
+        textarea.style.padding = '6px';
+        textarea.style.background = 'var(--bg-primary)';
+        textarea.style.color = 'var(--text-normal)';
+        textarea.style.fontSize = (arrow.labelFontSize ?? 16) + 'px';
+        textarea.style.fontFamily = 'inherit';
+        textarea.style.boxSizing = 'border-box';
+        this.labelEditorEl.appendChild(textarea);
+
+        // Font size controls + confirm
+        const sizeDisplay = document.createElement('span');
+        sizeDisplay.textContent = (arrow.labelFontSize ?? 16) + 'px';
+        sizeDisplay.style.fontSize = '12px';
+        sizeDisplay.style.color = 'var(--text-muted)';
+        sizeDisplay.style.minWidth = '30px';
+        sizeDisplay.style.textAlign = 'right';
+
+        const updateSizeDisplay = () => {
+            sizeDisplay.textContent = (arrow.labelFontSize ?? 16) + 'px';
+        };
+
+        const shrinkBtn = this.createSmallButton('A-', t('textboxEditor.fontSize.shrink'));
+        shrinkBtn.addEventListener('click', () => {
+            arrow.labelFontSize = Math.max(8, (arrow.labelFontSize ?? 16) - 2);
+            updateSizeDisplay();
+            this.engine.saveHistory();
+            this.engine.notifyChange();
+            this.requestRender();
+        });
+
+        const growBtn = this.createSmallButton('A+', t('textboxEditor.fontSize.grow'));
+        growBtn.addEventListener('click', () => {
+            arrow.labelFontSize = Math.min(72, (arrow.labelFontSize ?? 16) + 2);
+            updateSizeDisplay();
+            this.engine.saveHistory();
+            this.engine.notifyChange();
+            this.requestRender();
+        });
+
+        const resetBtn = this.createSmallButton('R', t('textboxEditor.fontSize.reset'));
+        resetBtn.addEventListener('click', () => {
+            arrow.labelFontSize = 16;
+            updateSizeDisplay();
+            this.engine.saveHistory();
+            this.engine.notifyChange();
+            this.requestRender();
+        });
+
+        toolbar.appendChild(sizeDisplay);
+        toolbar.appendChild(shrinkBtn);
+        toolbar.appendChild(growBtn);
+        toolbar.appendChild(resetBtn);
+
+        // Position toggle buttons
+        const positions: Array<{ key: 'overlap' | 'above' | 'below'; icon: string }> = [
+            { key: 'overlap', icon: '⊥' },
+            { key: 'above', icon: '↑' },
+            { key: 'below', icon: '↓' },
+        ];
+        const currentPos = arrow.labelPosition ?? 'overlap';
+        for (const p of positions) {
+            const posBtn = this.createSmallButton(p.icon, t('arrowLabelEditor.position.' + p.key));
+            posBtn.style.marginLeft = p.key === 'overlap' ? '8px' : '0';
+            if (p.key === currentPos) {
+                posBtn.style.background = 'var(--accent)';
+                posBtn.style.color = 'var(--accent-text)';
+            }
+            posBtn.addEventListener('click', () => {
+                arrow.labelPosition = p.key;
+                this.engine.saveHistory();
+                this.engine.notifyChange();
+                this.requestRender();
+                this.startArrowLabelEditor(id);
+            });
+            toolbar.appendChild(posBtn);
+        }
+
+        const doneBtn = this.createSmallButton('✓', t('arrowLabelEditor.confirm'));
+        doneBtn.style.marginLeft = 'auto';
+        doneBtn.addEventListener('click', () => {
+            const value = textarea.value;
+            if (value.trim()) {
+                arrow.labelContent = value;
+                this.engine.saveHistory();
+            } else {
+                arrow.labelVisible = false;
+                arrow.labelContent = undefined;
+            }
+            this.engine.notifyChange();
+            this.closeEditors();
+            this.requestRender();
+        });
+        toolbar.appendChild(doneBtn);
+
+        textarea.addEventListener('keydown', (ev) => {
+            if (ev.key === 'Escape') {
+                ev.stopPropagation();
+                this.closeEditors();
+                this.requestRender();
+                return;
+            }
+        });
+
+        textarea.addEventListener('input', () => {
+            arrow.labelContent = textarea.value;
+            textarea.style.height = 'auto';
+            textarea.style.height = Math.max(60, textarea.scrollHeight) + 'px';
+            this.requestRender();
+        });
+
+        textarea.focus();
+        textarea.select();
+    }
+
     closeEditors(): void {
+        // Save textbox editor
         if (this.textboxEditorEl && this.engine.editingTextboxId) {
             const textarea = this.textboxEditorEl.querySelector('textarea') as HTMLTextAreaElement | null;
             if (textarea) {
@@ -1516,6 +1820,27 @@ export class SimpleDrawCanvas {
             }
         }
 
+        // Save label editor
+        if (this.labelEditorEl && this.engine.labelEditorArrowId) {
+            const textarea = this.labelEditorEl.querySelector('textarea') as HTMLTextAreaElement | null;
+            if (textarea) {
+                const arrow = this.engine.data.elements.find(
+                    e => e.id === this.engine.labelEditorArrowId && e.type === 'arrow'
+                ) as ArrowData | undefined;
+                if (arrow) {
+                    const value = textarea.value;
+                    if (value.trim()) {
+                        arrow.labelContent = value;
+                        this.engine.saveHistory();
+                    } else {
+                        arrow.labelVisible = false;
+                        arrow.labelContent = undefined;
+                    }
+                    this.engine.notifyChange();
+                }
+            }
+        }
+
         if (this.textboxEditorEl) {
             this.textboxEditorEl.remove();
             this.textboxEditorEl = null;
@@ -1524,8 +1849,13 @@ export class SimpleDrawCanvas {
             this.arrowEditorEl.remove();
             this.arrowEditorEl = null;
         }
+        if (this.labelEditorEl) {
+            this.labelEditorEl.remove();
+            this.labelEditorEl = null;
+        }
         this.engine.editingTextboxId = null;
         this.engine.editingArrowId = null;
+        this.engine.labelEditorArrowId = null;
     }
 
     // --- Markdown Rendering in Textboxes ---
@@ -1633,12 +1963,15 @@ export class SimpleDrawCanvas {
     updateGrid(): void {
         const vs = this.engine.data.viewState;
         if (this.settings.showGrid) {
-            const gs = GRID_SIZE;
+            const gs = this.settings.gridSize || GRID_SIZE;
             this.gridEl.style.backgroundImage = `
-                linear-gradient(rgba(128,128,128,0.1) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(128,128,128,0.1) 1px, transparent 1px)
+                repeating-linear-gradient(rgba(128,128,128,0.15) 0px, rgba(128,128,128,0.15) 1px, transparent 1px, transparent ${gs}px),
+                repeating-linear-gradient(90deg, rgba(128,128,128,0.15) 0px, rgba(128,128,128,0.15) 1px, transparent 1px, transparent ${gs}px)
             `;
             this.gridEl.style.backgroundSize = `${gs}px ${gs}px`;
+            const xOff = ((-vs.panX % gs) + gs) % gs;
+            const yOff = ((-vs.panY % gs) + gs) % gs;
+            this.gridEl.style.backgroundPosition = `${xOff}px ${yOff}px`;
             this.gridEl.style.display = 'block';
         } else {
             this.gridEl.style.display = 'none';
@@ -1756,6 +2089,137 @@ export class SimpleDrawCanvas {
                 renderInto(this.svgLayer, arrow, isSelected);
             }
         }
+
+        // Arrow label rendering
+        const existingLabels = new Set<string>();
+        for (const el of this.engine.data.elements) {
+            if (el.type !== 'arrow') continue;
+            const arrow = el as ArrowData;
+            if (!arrow.labelVisible) continue;
+
+            const mid = this.engine.getArrowMidpoint(arrow);
+            const offset = this.engine.getLabelOffset(arrow, arrow.labelPosition ?? 'overlap');
+            const labelId = 'arrow-label-' + arrow.id;
+            existingLabels.add(labelId);
+
+            let labelEl = this.elementsLayer.querySelector(`[data-arrow-label-id="${labelId}"]`) as HTMLElement | null;
+            if (!labelEl) {
+                labelEl = document.createElement('div');
+                labelEl.setAttribute('data-arrow-label-id', labelId);
+                labelEl.className = 'simpledraw-arrow-label';
+                labelEl.style.position = 'absolute';
+                labelEl.style.pointerEvents = 'auto';
+                labelEl.style.transform = 'translate(-50%, -50%)';
+                labelEl.style.background = 'transparent';
+                labelEl.style.border = 'none';
+                labelEl.style.padding = '2px 4px';
+                labelEl.style.textAlign = 'center';
+                labelEl.style.cursor = 'pointer';
+                labelEl.style.wordBreak = 'break-word';
+                labelEl.style.boxSizing = 'border-box';
+                this.elementsLayer.appendChild(labelEl);
+            }
+            const fontSize = arrow.labelFontSize ?? 16;
+            const writingMode = arrow.labelWritingMode ?? 'horizontal-tb';
+            labelEl.style.left = (mid.x + offset.x) + 'px';
+            labelEl.style.top = (mid.y + offset.y) + 'px';
+            labelEl.style.transform = 'translate(-50%, -50%)';
+            labelEl.style.writingMode = writingMode;
+            labelEl.style.fontSize = fontSize + 'px';
+
+            // Apply explicit width/height if set
+            if (arrow.labelWidth) {
+                labelEl.style.width = arrow.labelWidth + 'px';
+                labelEl.style.maxWidth = 'none';
+            } else {
+                labelEl.style.width = '';
+                labelEl.style.maxWidth = '200px';
+            }
+            if (arrow.labelHeight) {
+                labelEl.style.height = arrow.labelHeight + 'px';
+                labelEl.style.overflow = 'hidden';
+            } else {
+                labelEl.style.height = '';
+                labelEl.style.overflow = 'visible';
+            }
+
+            const contentEl = labelEl.querySelector('.simpledraw-arrow-label-content') as HTMLElement | null;
+            if (arrow.labelContent?.trim()) {
+                if (labelEl.getAttribute('data-rendered') !== arrow.labelContent) {
+                    contentEl?.remove();
+                    labelEl.querySelector('.simpledraw-arrow-label-placeholder')?.remove();
+                    const newContent = document.createElement('div');
+                    newContent.className = 'simpledraw-arrow-label-content';
+                    labelEl.appendChild(newContent);
+                    this.renderMarkdownInElement(arrow.labelContent, newContent);
+                    labelEl.setAttribute('data-rendered', arrow.labelContent);
+                }
+            } else {
+                contentEl?.remove();
+                labelEl.removeAttribute('data-rendered');
+                if (!labelEl.querySelector('.simpledraw-arrow-label-placeholder')) {
+                    const ph = document.createElement('div');
+                    ph.className = 'simpledraw-arrow-label-placeholder';
+                    ph.textContent = t('arrowLabelEditor.placeholder');
+                    labelEl.appendChild(ph);
+                }
+            }
+
+            // Reposition label in DOM to match its arrow's z-order
+            const connectedTextboxIds: string[] = [];
+            if ('elementId' in arrow.startConnection) connectedTextboxIds.push(arrow.startConnection.elementId);
+            if ('elementId' in arrow.endConnection) connectedTextboxIds.push(arrow.endConnection.elementId);
+            if (connectedTextboxIds.length > 0) {
+                let maxIdx = -1;
+                let insertAfter: Element | null = null;
+                for (const id of connectedTextboxIds) {
+                    const idx = this.engine.data.elements.findIndex(e => e.id === id);
+                    if (idx > maxIdx) {
+                        maxIdx = idx;
+                        insertAfter = this.elementsLayer.querySelector(`[data-id="${id}"]`);
+                    }
+                }
+                if (insertAfter && insertAfter.parentNode) {
+                    insertAfter.parentNode.insertBefore(labelEl, insertAfter.nextSibling);
+                }
+            }
+
+            // Resize handles (only when arrow is selected and not actively in label editor)
+            const isSelected = this.engine.selectedIds.has(arrow.id);
+            const isEditingLabel = (this.engine.labelEditorArrowId === arrow.id);
+            if (isSelected && !isEditingLabel) {
+                const handles = labelEl.querySelectorAll('.simpledraw-label-resize-handle');
+                if (handles.length === 0) {
+                    for (const pos of ['se', 'sw', 'ne', 'nw']) {
+                        const h = document.createElement('div');
+                        h.className = 'simpledraw-label-resize-handle';
+                        h.dataset.labelHandleId = arrow.id;
+                        h.dataset.handle = pos;
+                        h.style.position = 'absolute';
+                        h.style.width = '8px';
+                        h.style.height = '8px';
+                        h.style.background = 'var(--accent-color)';
+                        h.style.cursor = pos === 'se' || pos === 'nw' ? 'nwse-resize' : 'nesw-resize';
+                        h.style.zIndex = '10';
+                        h.style.pointerEvents = 'auto';
+                        switch (pos) {
+                            case 'se': h.style.bottom = '-4px'; h.style.right = '-4px'; break;
+                            case 'sw': h.style.bottom = '-4px'; h.style.left = '-4px'; break;
+                            case 'ne': h.style.top = '-4px'; h.style.right = '-4px'; break;
+                            case 'nw': h.style.top = '-4px'; h.style.left = '-4px'; break;
+                        }
+                        labelEl.appendChild(h);
+                    }
+                }
+            } else {
+                labelEl.querySelectorAll('.simpledraw-label-resize-handle').forEach(h => h.remove());
+            }
+        }
+        // Remove stale label elements
+        this.elementsLayer.querySelectorAll('[data-arrow-label-id]').forEach(el => {
+            const id = el.getAttribute('data-arrow-label-id')!;
+            if (!existingLabels.has(id)) el.remove();
+        });
 
         // Diamond textbox borders
         for (const el of this.engine.data.elements) {
@@ -1977,6 +2441,7 @@ export class SimpleDrawCanvas {
             container.style.borderRadius = '50%';
             container.style.clipPath = 'none';
             container.style.overflow = '';
+            wrapper.style.borderRadius = '50%';
         } else if (shape === 'diamond') {
             container.style.borderRadius = '0';
             container.style.clipPath = 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)';
@@ -2007,6 +2472,24 @@ export class SimpleDrawCanvas {
         handles.forEach(h => {
             (h as HTMLElement).style.display = (isSelected && !isEditing) ? 'block' : 'none';
         });
+
+        // Lock indicator overlay
+        let lockIcon = wrapper.querySelector('.simpledraw-lock-icon') as HTMLElement | null;
+        if (tb.locked) {
+            if (!lockIcon) {
+                lockIcon = wrapper.createDiv('simpledraw-lock-icon');
+                lockIcon.textContent = '🔒';
+                lockIcon.style.position = 'absolute';
+                lockIcon.style.top = '2px';
+                lockIcon.style.right = '2px';
+                lockIcon.style.fontSize = '12px';
+                lockIcon.style.zIndex = '20';
+                lockIcon.style.pointerEvents = 'none';
+                lockIcon.style.opacity = '0.7';
+            }
+        } else {
+            if (lockIcon) lockIcon.remove();
+        }
     }
 
     getResizeCursor(handle: string): string {
@@ -2056,7 +2539,7 @@ export class SimpleDrawCanvas {
                 const snapCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
                 snapCircle.setAttribute('cx', String(snapped.x));
                 snapCircle.setAttribute('cy', String(snapped.y));
-                snapCircle.setAttribute('r', '8');
+                snapCircle.setAttribute('r', String(this.settings.snapPreviewRadius ?? 8));
                 snapCircle.style.fill = 'rgba(74, 144, 217, 0.3)';
                 snapCircle.style.stroke = '#4a90d9';
                 snapCircle.setAttribute('stroke-width', '2');
@@ -2085,7 +2568,7 @@ export class SimpleDrawCanvas {
                 svg.style.overflow = 'visible';
                 snapCircle.setAttribute('cx', String(snapped.x));
                 snapCircle.setAttribute('cy', String(snapped.y));
-                snapCircle.setAttribute('r', '8');
+                snapCircle.setAttribute('r', String(this.settings.snapPreviewRadius ?? 8));
                 snapCircle.style.fill = 'rgba(74, 144, 217, 0.3)';
                 snapCircle.style.stroke = '#4a90d9';
                 snapCircle.setAttribute('stroke-width', '2');
@@ -2251,7 +2734,10 @@ export class SimpleDrawCanvas {
     // --- Clipboard (Copy / Paste) ---
 
     private async copySelectedElements(): Promise<void> {
-        const selected = this.engine.data.elements.filter(el => this.engine.selectedIds.has(el.id));
+        const selected = this.engine.data.elements.filter(el => {
+            if (el.type === 'textbox' && (el as TextBoxData).locked) return false;
+            return this.engine.selectedIds.has(el.id);
+        });
         if (selected.length === 0) return;
         const data = JSON.stringify({ _simpledraw: true, version: 1, elements: JSON.parse(JSON.stringify(selected)) });
         try {
@@ -2426,8 +2912,8 @@ export class SimpleDrawCanvas {
             grid.style.pointerEvents = 'none';
             grid.style.zIndex = '1';
             grid.style.backgroundImage = `
-                linear-gradient(rgba(128,128,128,0.1) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(128,128,128,0.1) 1px, transparent 1px)
+                repeating-linear-gradient(rgba(128,128,128,0.15) 0px, rgba(128,128,128,0.15) 1px, transparent 1px, transparent ${gs}px),
+                repeating-linear-gradient(90deg, rgba(128,128,128,0.15) 0px, rgba(128,128,128,0.15) 1px, transparent 1px, transparent ${gs}px)
             `;
             grid.style.backgroundSize = `${gs}px ${gs}px`;
             const xOff = ((-minX % gs) + gs) % gs;
@@ -2448,6 +2934,8 @@ export class SimpleDrawCanvas {
         offscreen.appendChild(svgClone);
 
         const elementsClone = this.elementsLayer.cloneNode(true) as HTMLElement;
+        // Remove lock icons from exported image
+        elementsClone.querySelectorAll('.simpledraw-lock-icon').forEach(el => el.remove());
         elementsClone.style.position = 'absolute';
         elementsClone.style.left = '0px';
         elementsClone.style.top = '0px';
