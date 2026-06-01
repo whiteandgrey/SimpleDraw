@@ -2110,6 +2110,22 @@ export class SimpleDrawCanvas {
                 labelEl.style.wordBreak = 'break-word';
                 labelEl.style.boxSizing = 'border-box';
                 this.elementsLayer.appendChild(labelEl);
+
+                // z-order: insert after the highest-z connected textbox (one-time on creation)
+                const connectIds: string[] = [];
+                if ('elementId' in arrow.startConnection) connectIds.push(arrow.startConnection.elementId);
+                if ('elementId' in arrow.endConnection) connectIds.push(arrow.endConnection.elementId);
+                if (connectIds.length > 0) {
+                    let maxIdx = -1;
+                    let ref: Element | null = null;
+                    for (const cid of connectIds) {
+                        const idx = this.engine.data.elements.findIndex(e => e.id === cid);
+                        if (idx > maxIdx) { maxIdx = idx; ref = this.elementsLayer.querySelector(`[data-id="${cid}"]`); }
+                    }
+                    if (ref && ref.parentNode) {
+                        ref.parentNode.insertBefore(labelEl, ref.nextSibling);
+                    }
+                }
             }
             const fontSize = arrow.labelFontSize ?? 16;
             const writingMode = arrow.labelWritingMode ?? 'horizontal-tb';

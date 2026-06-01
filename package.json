@@ -1,6 +1,6 @@
 {
   "name": "simpledraw-desktop",
-  "version": "1.5.5",
+  "version": "1.5.6",
   "description": "SimpleDraw - 轻量级流程图绘制桌面应用",
   "author": "SimpleDraw Team",
   "main": "dist/main/main.js",

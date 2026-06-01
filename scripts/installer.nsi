@@ -1,7 +1,7 @@
 !include "MUI2.nsh"
 
 Name "SimpleDraw"
-OutFile "/home/wwwwg/simpledraw/simpledraw-desktop/release/SimpleDraw-1.5.5-win32-x64-installer.exe"
+OutFile "/home/wwwwg/simpledraw/simpledraw-desktop/release/SimpleDraw-1.5.6-win32-x64-installer.exe"
 InstallDir "$PROGRAMFILES64\SimpleDraw"
 RequestExecutionLevel admin
 
@@ -15,12 +15,12 @@ RequestExecutionLevel admin
 !insertmacro MUI_LANGUAGE "SimpChinese"
 !insertmacro MUI_LANGUAGE "English"
 
-VIProductVersion "1.5.5.0"
+VIProductVersion "1.5.6.0"
 VIAddVersionKey "ProductName" "SimpleDraw"
 VIAddVersionKey "CompanyName" "SimpleDraw Team"
 VIAddVersionKey "LegalCopyright" "© 2026 SimpleDraw Team"
 VIAddVersionKey "FileDescription" "SimpleDraw - Vector Drawing Tool"
-VIAddVersionKey "FileVersion" "1.5.5.0"
+VIAddVersionKey "FileVersion" "1.5.6.0"
 
 Section "Install"
     SetOutPath "$INSTDIR"
@@ -34,7 +34,7 @@ Section "Install"
     WriteUninstaller "$INSTDIR\uninstall.exe"
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\SimpleDraw" "DisplayName" "SimpleDraw"
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\SimpleDraw" "UninstallString" "$INSTDIR\uninstall.exe"
-    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\SimpleDraw" "DisplayVersion" "1.5.5"
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\SimpleDraw" "DisplayVersion" "1.5.6"
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\SimpleDraw" "Publisher" "SimpleDraw Team"
 SectionEnd
 
