@@ -4,7 +4,7 @@
 轻量级流程图绘制软件，在 SimpleDraw 中直接创建和编辑 `.simpledraw` 文件。<br>
 A lightweight flowchart drawing app. Create and edit `.simpledraw` files directly in Obsidian.
 
-![version](https://img.shields.io/badge/version-1.5.3-blue)
+![version](https://img.shields.io/badge/version-1.5.5-blue)
 
 > 🖥️ 不想用独立桌面版?**obsidian插件已发布！**   
 > 🖥️ Don't want to use a standalone desktop app? **The Obsidian plugin has been released!**<br>
