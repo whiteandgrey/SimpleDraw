@@ -2,6 +2,27 @@
 
 ---
 
+## v1.5.5 (2026-06-01)
+
+**从 Obsidian 插件同步 v1.5.5——空内容自动隐藏标签 + 确认按钮简化**
+
+### Bug 修复
+
+| 问题 | 根因 | 修复 |
+|------|------|------|
+| 删空标签内容后 `labelVisible` 仍为 `true`，Escape/点击画布关闭编辑器时仍显示灰色占位符 | v1.5.4 将 auto-hide 逻辑从 `closeEditors()` 移至 ✓ 确认按钮，但 Escape 和点击别处关闭也走 `closeEditors()`，未执行 auto-hide | 恢复 `closeEditors()` 中自动 `labelVisible = false` 逻辑，三种关闭路径统一处理 |
+| ✓ 确认按钮包含与 `closeEditors()` 重复的 auto-hide 逻辑 | v1.5.4 为弥补 auto-hide 缺失而额外添加 | `closeEditors()` 恢复后按钮冗余逻辑删除，简化为 `closeEditors(); requestRender()` |
+
+### 文件变更
+
+| 文件 | 改动 | 说明 |
+|------|------|------|
+| `src/renderer/canvas-view.ts` | ~8 行 | closeEditors 恢复 auto-hide + 确认按钮简化 |
+| `package.json` | +1 行 / -1 行 | 版本号 1.5.4 → 1.5.5 |
+| `scripts/installer.nsi` | 4 处 | OutFile/DISPLAYVERSION 等版本号同步为 1.5.5 |
+
+---
+
 ## v1.5.4 (2026-06-01)
 
 **从 Obsidian 插件同步 v1.5.4——标签命中检测重构为坐标碰撞 + 逻辑双击 + 删除 insertBefore**

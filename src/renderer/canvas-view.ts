@@ -1764,15 +1764,6 @@ export class SimpleDrawCanvas {
         const doneBtn = this.createSmallButton('✓', t('arrowLabelEditor.confirm'));
         doneBtn.style.marginLeft = 'auto';
         doneBtn.addEventListener('click', () => {
-            const value = textarea.value;
-            if (value.trim()) {
-                arrow.labelContent = value;
-                this.engine.saveHistory();
-            } else {
-                arrow.labelVisible = false;
-                arrow.labelContent = undefined;
-            }
-            this.engine.notifyChange();
             this.closeEditors();
             this.requestRender();
         });
@@ -1834,6 +1825,8 @@ export class SimpleDrawCanvas {
                         this.engine.saveHistory();
                     } else {
                         arrow.labelContent = undefined;
+                        arrow.labelVisible = false;
+                        this.engine.saveHistory();
                     }
                     this.engine.notifyChange();
                 }
