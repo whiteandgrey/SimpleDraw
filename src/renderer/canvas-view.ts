@@ -688,32 +688,7 @@ export class SimpleDrawCanvas {
     }
 
     handleDefaultMouseDown(e: MouseEvent, pos: { x: number; y: number }, additive: boolean): void {
-        this.closeEditors();
-
-        for (const el of this.engine.data.elements) {
-            if (el.type !== 'textbox') continue;
-            const tb = el as TextBoxData;
-            if (tb.locked) continue;
-            const handle = this.engine.getResizeHandle(tb, pos.x, pos.y);
-            if (handle) {
-                this.engine.selectElement(tb.id, additive);
-                this.engine.dragging = {
-                    type: 'resize',
-                    startMouseX: pos.x,
-                    startMouseY: pos.y,
-                    startX: tb.x,
-                    startY: tb.y,
-                    startWidth: tb.width,
-                    startHeight: tb.height,
-                    resizeHandle: handle,
-                    textboxId: tb.id,
-                };
-                this.containerEl.style.cursor = 'nwse-resize';
-                return;
-            }
-        }
-
-        // Check arrow label resize handles
+        // 1. Arrow label resize handles (stay DOM-based for handle detection)
         const labelHandle = (e.target as HTMLElement).closest('[data-label-handle-id]') as HTMLElement | null;
         if (labelHandle) {
             const arrowId = labelHandle.dataset.labelHandleId!;
@@ -743,20 +718,46 @@ export class SimpleDrawCanvas {
             }
         }
 
-        // Click on label text → select arrow without starting MOVE drag
-        if (!labelHandle) {
-            const labelHit = (e.target as HTMLElement).closest('[data-arrow-label-id]') as HTMLElement | null;
-            if (labelHit) {
-                const arrowId = labelHit.dataset.arrowLabelId!;
-                const realArrowId = arrowId.replace('arrow-label-', '');
-                if (!this.engine.selectedIds.has(realArrowId)) {
-                    this.engine.selectElement(realArrowId, additive);
-                }
+        // 2. Label text click → 逻辑双击：未选中则选中，已选中则编辑
+        const labelArrow = this.engine.getLabelAt(pos.x, pos.y);
+        if (labelArrow) {
+            if (this.engine.selectedIds.has(labelArrow.id)) {
+                this.startArrowLabelEditor(labelArrow.id);
+            } else {
+                this.engine.selectElement(labelArrow.id, additive);
                 this.requestRender();
+            }
+            return;
+        }
+
+        // 3. Close any open editors
+        this.closeEditors();
+
+        // 4. Check all textboxes for resize handle hits
+        for (const el of this.engine.data.elements) {
+            if (el.type !== 'textbox') continue;
+            const tb = el as TextBoxData;
+            if (tb.locked) continue;
+            const handle = this.engine.getResizeHandle(tb, pos.x, pos.y);
+            if (handle) {
+                this.engine.selectElement(tb.id, additive);
+                this.engine.dragging = {
+                    type: 'resize',
+                    startMouseX: pos.x,
+                    startMouseY: pos.y,
+                    startX: tb.x,
+                    startY: tb.y,
+                    startWidth: tb.width,
+                    startHeight: tb.height,
+                    resizeHandle: handle,
+                    textboxId: tb.id,
+                };
+                this.containerEl.style.cursor = 'nwse-resize';
                 return;
             }
         }
 
+        // 5. Check if clicking on an element
         const clickedEl = this.engine.getElementAt(pos.x, pos.y);
 
         if (clickedEl) {
@@ -967,16 +968,15 @@ export class SimpleDrawCanvas {
     }
 
     onDblClick(e: MouseEvent): void {
-        const target = e.target as HTMLElement;
-        const labelEl = target.closest('[data-arrow-label-id]');
-        if (labelEl) {
-            const id = labelEl.getAttribute('data-arrow-label-id')!;
-            const arrowId = id.replace('arrow-label-', '');
-            this.startArrowLabelEditor(arrowId);
+        const canvasPos = this.engine.screenToCanvas(e.clientX, e.clientY);
+
+        // getLabelAt 兜底（仅用于浏览器仍能触达 dblclick 的场景）
+        const labelArrow = this.engine.getLabelAt(canvasPos.x, canvasPos.y);
+        if (labelArrow) {
+            this.startArrowLabelEditor(labelArrow.id);
             return;
         }
 
-        const canvasPos = this.engine.screenToCanvas(e.clientX, e.clientY);
         const el = this.engine.getElementAt(canvasPos.x, canvasPos.y);
         if (el && el.type === 'textbox') {
             this.startEditingTextbox(el.id);
@@ -1756,7 +1756,7 @@ export class SimpleDrawCanvas {
                 this.engine.saveHistory();
                 this.engine.notifyChange();
                 this.requestRender();
-                this.startArrowLabelEditor(id);
+                this.startArrowLabelEditor(arrowId);
             });
             toolbar.appendChild(posBtn);
         }
@@ -1833,7 +1833,6 @@ export class SimpleDrawCanvas {
                         arrow.labelContent = value;
                         this.engine.saveHistory();
                     } else {
-                        arrow.labelVisible = false;
                         arrow.labelContent = undefined;
                     }
                     this.engine.notifyChange();
@@ -2162,25 +2161,6 @@ export class SimpleDrawCanvas {
                     ph.className = 'simpledraw-arrow-label-placeholder';
                     ph.textContent = t('arrowLabelEditor.placeholder');
                     labelEl.appendChild(ph);
-                }
-            }
-
-            // Reposition label in DOM to match its arrow's z-order
-            const connectedTextboxIds: string[] = [];
-            if ('elementId' in arrow.startConnection) connectedTextboxIds.push(arrow.startConnection.elementId);
-            if ('elementId' in arrow.endConnection) connectedTextboxIds.push(arrow.endConnection.elementId);
-            if (connectedTextboxIds.length > 0) {
-                let maxIdx = -1;
-                let insertAfter: Element | null = null;
-                for (const id of connectedTextboxIds) {
-                    const idx = this.engine.data.elements.findIndex(e => e.id === id);
-                    if (idx > maxIdx) {
-                        maxIdx = idx;
-                        insertAfter = this.elementsLayer.querySelector(`[data-id="${id}"]`);
-                    }
-                }
-                if (insertAfter && insertAfter.parentNode) {
-                    insertAfter.parentNode.insertBefore(labelEl, insertAfter.nextSibling);
                 }
             }
 

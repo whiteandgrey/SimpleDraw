@@ -2,6 +2,34 @@
 
 ---
 
+## v1.5.4 (2026-06-01)
+
+**从 Obsidian 插件同步 v1.5.4——标签命中检测重构为坐标碰撞 + 逻辑双击 + 删除 insertBefore**
+
+### 核心重构
+
+- **`engine.ts` 新增 `getLabelAt(x, y)` / `isPointInLabel(arrow, x, y)`**：与 `getElementAt` 同思路的坐标碰撞检测，替代 DOM `closest` 查询。标签现在像文本框一样由数据驱动命中检测
+- **`handleDefaultMouseDown()` 实现逻辑双击**：首次单击标签选中箭头，第二次单击直接打开标签编辑器，不再依赖浏览器 dblclick 事件
+- **`onDblClick()` 改用 `getLabelAt`**：数据驱动的兜底检测
+- **`closeEditors()` 移除自动 `labelVisible = false`**，仅 ✓ 确认按钮触发的关闭才隐藏空内容标签
+
+### Bug 修复
+
+| 问题 | 根因 | 修复 |
+|------|------|------|
+| 双击标签文字无法打开编辑器（浏览器不生成 dblclick） | v1.5.3 引入的 `insertBefore` 在两次单击间迁移标签 DOM 节点，浏览器判定"不同元素"→ 不生成 dblclick 事件 | 删除 `renderArrows()` 中的 `insertBefore` 逻辑，标签 DOM 不再每帧移动；改用逻辑双击（第二次单击已选中标签→开编辑器） |
+| `closeEditors` 误隐藏标签（关闭编辑器时空内容自动设 `labelVisible = false`） | 关闭编辑器的任何路径（Escape、点击别处）都触发自动隐藏 | 仅 ✓ 确认按钮才隐藏空内容标签 |
+
+### 文件变更
+
+| 文件 | 改动 | 说明 |
+|------|------|------|
+| `src/renderer/engine.ts` | +25 行 | 新增 getLabelAt / isPointInLabel 方法 |
+| `src/renderer/canvas-view.ts` | ~30 行 | handleDefaultMouseDown 重排（标签检测先于 closeEditors）+ 逻辑双击 + 删除 insertBefore + closeEditors 去 auto-hide + onDblClick 改用 getLabelAt |
+| `package.json` | +1 行 / -1 行 | 版本号 1.5.3 → 1.5.4 |
+
+---
+
 ## v1.5.3 (2026-05-28)
 
 **从 Obsidian 插件同步 v1.5.3——标签层级修复 + 编辑框 auto-grow 恢复**

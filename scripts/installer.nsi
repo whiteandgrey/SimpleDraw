@@ -1,7 +1,7 @@
 !include "MUI2.nsh"
 
 Name "SimpleDraw"
-OutFile "/home/wwwwg/simpledraw/simpledraw-desktop/release/SimpleDraw-1.5.3-win32-x64-installer.exe"
+OutFile "/home/wwwwg/simpledraw/simpledraw-desktop/release/SimpleDraw-1.5.4-win32-x64-installer.exe"
 InstallDir "$PROGRAMFILES64\SimpleDraw"
 RequestExecutionLevel admin
 
