@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: file:;">
+    <title>SimpleDraw</title>
+    <link rel="stylesheet" href="styles.css">
+    <style id="theme-override"></style>
+</head>
+<body>
+    <div id="app">
+        <!-- Title bar (custom) -->
+        <div id="titlebar">
+            <span id="titlebar-title">SimpleDraw</span>
+            <span id="titlebar-filepath"></span>
+        </div>
+
+        <!-- Toast container -->
+        <div id="toast-container"></div>
+
+        <!-- Main canvas area -->
+        <div id="canvas-container"></div>
+
+        <!-- Status bar -->
+        <div id="statusbar">
+            <span id="statusbar-mode"></span>
+            <span id="statusbar-zoom"></span>
+            <span id="statusbar-elements"></span>
+        </div>
+    </div>
+
+    <!-- Hidden dialog for link prompt -->
+    <dialog id="link-prompt-dialog">
+        <form method="dialog">
+            <label for="link-url">输入链接 URL:</label>
+            <input type="url" id="link-url" placeholder="https://..." style="width:300px">
+            <div class="dialog-buttons">
+                <button type="submit" id="link-confirm" value="confirm">确认</button>
+                <button type="button" id="link-cancel">取消</button>
+            </div>
+        </form>
+    </dialog>
+
+    <script src="index.js"></script>
+</body>
+</html>
